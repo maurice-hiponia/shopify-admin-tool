@@ -4,9 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shopify Admin Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-</head>
+   </head>
 <body>
-    <h1 class="test">Hello World</h1>
+    <main>
+        <h1>Shopify Admin Tool</h1>
+        <div class="admin-modules">
+            <button class="product-module" id="get-products">Products</button>
+        </div>
+        <div id="product-list"></div>
+    </main>
+
+    <script>
+    document.getElementById('get-products').addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/product');
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const products = await response.json();
+
+        const productList = document.getElementById('product-list');
+        productList.innerHTML = '';
+
+        products.forEach(product => {
+          const item = document.createElement("div");
+          item.textContent = `${product.title} - ${product.id}`;
+          productList.appendChild(item);
+        });
+
+      } catch (error) {
+        console.error(error);
+      }
+    });
+    </script>
+
+
 </body>
 </html>
