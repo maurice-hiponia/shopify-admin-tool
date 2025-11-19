@@ -5,7 +5,7 @@ import { constants } from "node:fs";
 
 let cachedRoot = null;
 
-async function resolvedRootDir() {
+export async function resolvedRootDir() {
   if (cachedRoot) {
     return cachedRoot;
   }
@@ -32,6 +32,3 @@ async function resolvedRootDir() {
     }
   }
 }
-
-
-export const getRootDir = resolvedRootDir();
