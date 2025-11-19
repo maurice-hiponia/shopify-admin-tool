@@ -1,3 +1,4 @@
+
 <!DOCTYPE HTML>
 <html lang="en">
 <head>
@@ -8,39 +9,155 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-   </head>
+</head>
 <body>
     <main>
         <h1>Shopify Admin Tool</h1>
-        <div class="admin-modules">
-            <button class="product-module" id="get-products">Products</button>
+        <div class="module-buttons">
+            <button class="module-button" id="get-products">View all products</button>
+            <button class="module-button" id="copy-table" disabled>Copy table to clipboard</button>
         </div>
-        <div id="product-list"></div>
+        <div class="table-container" id="table-container">
+            <div class="loading-bar" id="loading-bar"></div>
+            <div id="data-container"></div>
+        </div>
     </main>
 
     <script>
-    document.getElementById('get-products').addEventListener('click', async () => {
-      try {
-        const response = await fetch('/api/product');
-        if (!response.ok) throw new Error('Network response was not ok');
+        const copyButton = document.getElementById('copy-table');
+        let lastProducts = [];
 
-        const products = await response.json();
+        function formatPrice(num) {
+          return Number(num).toLocaleString('en-US', { maximumFractionDigits: 0 });
+        }
 
-        const productList = document.getElementById('product-list');
-        productList.innerHTML = '';
+        function productsToTsv(products) {
+            const headers = ['#','Title','ID','Handle','No. of Images','MAX COD','SRP','Tags','Status'];
+            const rows = [headers.join('\t')];
+            products.forEach((product, index) => {
+                const status = (product.status || 'draft').toLowerCase();
+                rows.push([
+                    index + 1,
+                    product.title,
+                    product.id,
+                    product.handle,
+                    product.mediaCount.count,
+                    `₱${formatPrice(product.priceRangeV2.maxVariantPrice.amount)}`,
+                    product.compareAtPriceRange?.maxVariantCompareAtPrice?.amount
+                        ? `₱${formatPrice(product.compareAtPriceRange.maxVariantCompareAtPrice.amount)}`
+                        : '₱0',
+                    product.tags,
+                    status === 'active' ? 'Active' : (product.status || 'Draft')
+                ].join('\t'));
+            });
+            return rows.join('\n');
+        }
 
-        products.forEach(product => {
-          const item = document.createElement("div");
-          item.textContent = `${product.title} - ${product.id}`;
-          productList.appendChild(item);
+        async function copyTableData() {
+            if (!lastProducts.length) return;
+            const tsv = productsToTsv(lastProducts);
+            try {
+                await navigator.clipboard.writeText(tsv);
+                copyButton.textContent = 'Copied!';
+            } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = tsv;
+                textarea.setAttribute('readonly', '');
+                textarea.style.position = 'absolute';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                copyButton.textContent = 'Copied!';
+            } finally {
+                copyButton.disabled = false;
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy table to clipboard';
+                }, 1500);
+            }
+        }
+
+        copyButton.addEventListener('click', () => {
+            copyButton.disabled = true;
+            copyTableData().catch((error) => {
+                console.error(error);
+                copyButton.disabled = false;
+                copyButton.textContent = 'Copy failed, retry';
+            });
         });
 
-      } catch (error) {
-        console.error(error);
-      }
-    });
+        document.getElementById('get-products').addEventListener('click', async () => {
+            const dataContainer = document.getElementById('data-container');
+            const tableContainer = document.getElementById('table-container');
+            const loadingBar = document.getElementById('loading-bar');
+
+            try {
+                dataContainer.innerHTML = '';
+                tableContainer.classList.add('active');
+                loadingBar.classList.add('active');
+
+                const response = await fetch('/api/product');
+                if (!response.ok) throw new Error('Network response was not ok');
+
+                const products = await response.json();
+
+                lastProducts = products;
+                copyButton.disabled = false;
+
+                const tableScroll = document.createElement('div');
+                tableScroll.className = 'table-scroll';
+
+                const table = document.createElement('table');
+
+                const thead = document.createElement('thead');
+                thead.innerHTML = `
+                    <tr>
+                        <th>#</th>
+                        <th>Title</th>
+                        <th>ID</th>
+                        <th>Handle</th>
+                        <th>No. of Images</th>
+                        <th>MAX COD</th>
+                        <th>SRP</th>
+                        <th>Tags</th>
+                        <th>Status</th>
+                    </tr>
+                `;
+                table.appendChild(thead);
+
+                const tbody = document.createElement('tbody');
+                products.forEach((product, index) => {
+                    const tr = document.createElement('tr');
+                    const status = (product.status || 'draft').toLowerCase();
+                    const badgeClass = status === 'active' ? 'badge-active' : 'badge-inactive';
+                    tr.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${product.title}</td>
+                        <td>${product.id}</td>
+                        <td>${product.handle}</td>
+                        <td>${product.mediaCount.count}</td>
+                        <td>₱${formatPrice(product.priceRangeV2.maxVariantPrice.amount)}</td>
+                        <td>₱${product.compareAtPriceRange?.maxVariantCompareAtPrice?.amount
+                            ? formatPrice(product.compareAtPriceRange.maxVariantCompareAtPrice.amount)
+                            : '0'}</td>
+                        <td>${product.tags}</td>
+                        <td><span class="${badgeClass}">${product.status || 'Draft'}</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                table.appendChild(tbody);
+                tableScroll.appendChild(table);
+                dataContainer.appendChild(tableScroll);
+
+                loadingBar.classList.remove('active');
+                console.log(`Total products displayed: ${products.length}`);
+            } catch (error) {
+                loadingBar.classList.remove('active');
+                console.error(error);
+            }
+        });
     </script>
-
-
 </body>
 </html>
